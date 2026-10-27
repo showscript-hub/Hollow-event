@@ -1,0 +1,63 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local LP = Players.LocalPlayer
+
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/reallycoolusername101-cmyk/Nil_Library/refs/heads/main/wizard"))()
+local Window = Library:NewWindow("Dead Rails")
+
+local PlayerSection = Window:NewSection("Player")
+local CreditSection = Window:NewSection("Credit:MEOW")
+
+local noclipConn = nil
+local infJumpEnabled = false
+
+PlayerSection:CreateToggle("Noclip", function(state)
+    if state then
+        if not noclipConn then
+            noclipConn = RunService.Stepped:Connect(function()
+                local char = LP.Character
+                if char then
+                    for _, part in ipairs(char:GetDescendants()) do
+                        if part:IsA("BasePart") and part.CanCollide then
+                            part.CanCollide = false
+                        end
+                    end
+                end
+            end)
+        end
+    else
+        if noclipConn then
+            noclipConn:Disconnect()
+            noclipConn = nil
+        end
+        local char = LP.Character
+        if char then
+            for _, part in ipairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = true
+                end
+            end
+        end
+    end
+end)
+
+PlayerSection:CreateToggle("Infinite Jump", function(state)
+    infJumpEnabled = state
+end)
+
+UserInputService.JumpRequest:Connect(function()
+    if infJumpEnabled and LP.Character then
+        local hum = LP.Character:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    end
+end)
+
+CreditSection:CreateButton("Discord Server", function()
+    local discordLink = "https://discord.gg/FJK6QzNnf7"
+    if setclipboard then
+        setclipboard(discordLink)
+    end
+end)
