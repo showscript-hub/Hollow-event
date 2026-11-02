@@ -1,0 +1,205 @@
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/reallycoolusername101-cmyk/Nil_Library/refs/heads/main/wizard"))()
+local Window = Library:NewWindow("Skull TP")
+local TabMain = Window:NewSection("Main")
+local TabInfo = Window:NewSection("Info")
+
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local StarterGui = game:GetService("StarterGui")
+local LocalPlayer = Players.LocalPlayer
+
+local skullTpRunning = false
+local lastFoundCount = 0
+local lastStatusText = "Idle"
+
+local function notify(text, duration)
+    pcall(function()
+        StarterGui:SetCore("SendNotification", { Title = "Skull TP", Text = tostring(text), Duration = duration or 3 })
+    end)
+    print("[Skull TP] " .. tostring(text))
+end
+
+local function teleportTo(cf)
+    local character = LocalPlayer.Character
+    if not character then return end
+    local root = character:FindFirstChild("HumanoidRootPart")
+    if root and cf then
+        root.AssemblyLinearVelocity = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
+        root.CFrame = cf
+    end
+end
+
+local function extractParts(container)
+    local parts = {}
+
+    if container:IsA("BasePart") then
+        table.insert(parts, container)
+    end
+
+    for _, obj in ipairs(container:GetChildren()) do
+        if obj:IsA("BasePart") then
+            table.insert(parts, obj)
+        elseif obj:IsA("Model") then
+            local p = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart", true)
+            if p then table.insert(parts, p) end
+        end
+    end
+
+    if #parts == 0 then
+        for _, obj in ipairs(container:GetDescendants()) do
+            if obj:IsA("BasePart") then
+                table.insert(parts, obj)
+            end
+        end
+    end
+
+    return parts
+end
+
+local function collectSkullParts()
+    local effects = Workspace:FindFirstChild("Effects")
+    if not effects then return nil, "Effects not found" end
+
+    local tickets = effects:FindFirstChild("Tickets")
+    if not tickets then return nil, "Tickets not found" end
+
+    local allParts = {}
+    local seen = {}
+
+    local function addFrom(container)
+        if not container or seen[container] then return end
+        seen[container] = true
+        for _, p in ipairs(extractParts(container)) do
+            table.insert(allParts, p)
+        end
+    end
+
+    local function checkSun(sun)
+        if not sun then return end
+
+        local level2 = sun:FindFirstChild("Level2")
+        if level2 then
+            local skull = level2:FindFirstChild("Skull")
+            if skull then addFrom(skull) end
+        end
+
+        for _, token in ipairs(sun:GetChildren()) do
+            if token.Name:match("^Token") then
+                for _, level in ipairs(token:GetChildren()) do
+                    if level.Name:match("^Level") then
+                        local skull = level:FindFirstChild("Skull")
+                        if skull then addFrom(skull) end
+                    end
+                end
+            end
+        end
+    end
+
+    for _, child in ipairs(tickets:GetChildren()) do
+        if child.Name == "Sun: Tier1" then
+            checkSun(child)
+        end
+        local sun = child:FindFirstChild("Sun: Tier1")
+        if sun then checkSun(sun) end
+    end
+
+    if #allParts == 0 then
+        return nil, "No Skull found under Tickets"
+    end
+
+    return allParts
+end
+
+local statusText = TabInfo:CreateText("Status", "Idle | Skulls: 0")
+local countText  = TabInfo:CreateText("Skull Count", "0 found")
+
+local function setStatus(text, count)
+    lastStatusText = text
+    if count ~= nil then lastFoundCount = count end
+    statusText:SetText("%s | Skulls: %d", lastStatusText, lastFoundCount)
+    countText:SetText("%d skulls detected", lastFoundCount)
+end
+
+local function tpAllSkulls()
+    if skullTpRunning then
+        notify("Already running...")
+        return
+    end
+
+    local parts, err = collectSkullParts()
+    if not parts then
+        setStatus("Error", 0)
+        return notify(err)
+    end
+    if #parts == 0 then
+        setStatus("No skulls", 0)
+        return notify("No skull parts found!")
+    end
+
+    skullTpRunning = true
+    setStatus("Running", #parts)
+    notify("Teleporting through " .. #parts .. " skulls...")
+
+    for i, part in ipairs(parts) do
+        if not skullTpRunning then
+            setStatus("Cancelled", #parts)
+            notify("Cancelled.")
+            return
+        end
+        if part and part.Parent then
+            teleportTo(part.CFrame + Vector3.new(0, 3, 0))
+            setStatus(string.format("Teleporting %d/%d", i, #parts), #parts)
+            notify(string.format("[%d/%d] %s", i, #parts, part.Name))
+            task.wait(0.35)
+        end
+    end
+
+    skullTpRunning = false
+    setStatus("Done", #parts)
+    notify("Done - visited all skulls.")
+end
+
+TabInfo:CreateButton("Credit: CatHub", function()
+    notify("Script by CatHub")
+end)
+
+TabInfo:CreateButton("Copy Discord Invite", function()
+    local copy = setclipboard or toclipboard
+    if type(copy) == "function" then
+        copy("discord.gg/FJK6QzNnf7")
+        notify("Discord link copied to clipboard!")
+    else
+        notify("Executor doesn't support clipboard.")
+    end
+end)
+
+TabInfo:CreateButton("Refresh Skull Count", function()
+    local parts = collectSkullParts()
+    if parts then
+        setStatus("Ready", #parts)
+        notify("Found " .. #parts .. " skulls")
+    else
+        setStatus("Not found", 0)
+        notify("No skull path found")
+    end
+end)
+
+TabMain:CreateButton("TP Every Skull", function()
+    tpAllSkulls()
+end)
+
+TabMain:CreateButton("Stop Skull TP", function()
+    skullTpRunning = false
+    setStatus("Stopping", lastFoundCount)
+    notify("Stopping...")
+end)
+
+task.defer(function()
+    local parts = collectSkullParts()
+    if parts then
+        setStatus("Ready", #parts)
+    else
+        setStatus("Not found", 0)
+    end
+end)
