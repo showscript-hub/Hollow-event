@@ -31,13 +31,16 @@ TabInfo:CreateButton("Copy Discord Invite", function()
     end
 end)
 
+local function getHumanoid()
+    local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    return char:WaitForChild("Humanoid")
+end
+
 UserInputService.JumpRequest:Connect(function()
-    if infJumpEnabled then
-        local character = LocalPlayer.Character
-        local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-        if humanoid then
-            humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-        end
+    if not infJumpEnabled then return end
+    local humanoid = getHumanoid()
+    if humanoid and humanoid.Health > 0 then
+        humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
     end
 end)
 
