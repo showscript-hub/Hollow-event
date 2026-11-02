@@ -1,26 +1,42 @@
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/reallycoolusername101-cmyk/Nil_Library/refs/heads/main/wizard"))()
-local Window = Library:NewWindow("The Hollow - Mega Store")
-local TabMain = Window:NewSection("Main")
-local TabInfo = Window:NewSection("Info")
 
-local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
-local UserInputService = game:GetService("UserInputService")
-local StarterGui = game:GetService("StarterGui")
-local LocalPlayer = Players.LocalPlayer
+local Window    = Library:NewWindow("The Hollow - Mega Store")
+local TabMain   = Window:NewSection("Main")
+local TabInfo   = Window:NewSection("Info")
 
-local chestQueue = {}
+local Players         = game:GetService("Players")
+local Workspace       = game:GetService("Workspace")
+local UserInputService= game:GetService("UserInputService")
+local StarterGui      = game:GetService("StarterGui")
+local RunService      = game:GetService("RunService")
+local LocalPlayer     = Players.LocalPlayer
+
+local chestQueue        = {}
 local currentChestIndex = 1
-local infJumpEnabled = false
+local enabled           = false
+
 
 local function notify(text, duration)
     pcall(function()
-        StarterGui:SetCore("SendNotification", { Title = "Mega Store Script", Text = tostring(text), Duration = duration or 4 })
+        StarterGui:SetCore("SendNotification", {
+            Title = "Mega Store Script",
+            Text = tostring(text),
+            Duration = duration or 4,
+        })
     end)
     print("[Mega Store] " .. tostring(text))
 end
 
-TabInfo:CreateButton("Credit: CatHub", function() notify("Script by CatHub") end)
+local function getHumanoid()
+    local char = LocalPlayer.Character
+    if not char then return nil end
+    return char:FindFirstChildOfClass("Humanoid")
+end
+
+TabInfo:CreateButton("Credit: CatHub", function()
+    notify("Script by CatHub")
+end)
+
 TabInfo:CreateButton("Copy Discord Invite", function()
     local copy = setclipboard or toclipboard
     if type(copy) == "function" then
@@ -31,43 +47,47 @@ TabInfo:CreateButton("Copy Discord Invite", function()
     end
 end)
 
-local function getHumanoid()
-    local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-    return char:WaitForChild("Humanoid")
-end
-
 UserInputService.JumpRequest:Connect(function()
-    if not infJumpEnabled then return end
-    local humanoid = getHumanoid()
-    if humanoid and humanoid.Health > 0 then
-        humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+    if not enabled then return end
+    local hum = getHumanoid()
+    if hum and hum.Health > 0 then
+        hum:ChangeState(Enum.HumanoidStateType.Jumping)
+    end
+end)
+
+RunService.Heartbeat:Connect(function()
+    if not enabled then return end
+    if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+        local hum = getHumanoid()
+        if hum and hum.Health > 0 then
+            hum:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
     end
 end)
 
 local function teleportTo(cf)
     local character = LocalPlayer.Character
-    if character then
-        local root = character:FindFirstChild("HumanoidRootPart")
-        if root and cf then
-            root.AssemblyLinearVelocity = Vector3.zero
-            root.AssemblyAngularVelocity = Vector3.zero
-            root.CFrame = cf
-        end
+    if not character then return end
+    local root = character:FindFirstChild("HumanoidRootPart")
+    if root and cf then
+        root.AssemblyLinearVelocity  = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
+        root.CFrame = cf
     end
 end
 
 local function triggerPromptsInObject(object)
-    for _, descendant in ipairs(object:GetDescendants()) do
-        if descendant:IsA("ProximityPrompt") then
+    for _, d in ipairs(object:GetDescendants()) do
+        if d:IsA("ProximityPrompt") then
             pcall(function()
-                descendant.HoldDuration = 0
-                descendant.MaxActivationDistance = 32
+                d.HoldDuration          = 0
+                d.MaxActivationDistance = 32
                 if type(fireproximityprompt) == "function" then
-                    fireproximityprompt(descendant)
+                    fireproximityprompt(d)
                 else
-                    descendant.InputHoldBegin(descendant)
+                    d.InputHoldBegin(d)
                     task.wait(0.1)
-                    descendant.InputHoldEnd(descendant)
+                    d.InputHoldEnd(d)
                 end
             end)
         end
@@ -87,86 +107,85 @@ local function tpCauldron()
     local model = cauldron:FindFirstChild("Model")
     if not model then return notify("Cauldron Model not found!") end
 
-    local cauldronVisual = model:FindFirstChild("_CauldronVisual")
-    if cauldronVisual then
-        local targetPart = nil
-        if cauldronVisual:IsA("BasePart") then
-            targetPart = cauldronVisual
-        elseif cauldronVisual:IsA("Model") then
-            targetPart = cauldronVisual.PrimaryPart or cauldronVisual:FindFirstChildWhichIsA("BasePart", true)
-        end
+    local vis = model:FindFirstChild("_CauldronVisual")
+    if not vis then return notify("_CauldronVisual not found!") end
 
-        if targetPart then
-            teleportTo(targetPart.CFrame + Vector3.new(0, 3, 0))
-            notify("Teleported to Cauldron!")
-        end
+    local part
+    if vis:IsA("BasePart") then
+        part = vis
+    elseif vis:IsA("Model") then
+        part = vis.PrimaryPart or vis:FindFirstChildWhichIsA("BasePart", true)
+    end
+
+    if part then
+        teleportTo(part.CFrame + Vector3.new(0, 3, 0))
+        notify("Teleported to Cauldron!")
     else
-        notify("_CauldronVisual not found!")
+        notify("Cauldron part not found!")
     end
 end
 
 local function refreshChestQueue()
     local map = Workspace:FindFirstChild("Map")
     if not map then return false end
-
     local util = map:FindFirstChild("Util")
     if not util then return false end
-
-    local pumpkinChests = util:FindFirstChild("PumpkinChests")
-    if not pumpkinChests then return false end
+    local pumpkin = util:FindFirstChild("PumpkinChests")
+    if not pumpkin then return false end
 
     chestQueue = {}
-    for _, obj in ipairs(pumpkinChests:GetChildren()) do
+    for _, obj in ipairs(pumpkin:GetChildren()) do
         if obj:IsA("Model") then
             table.insert(chestQueue, obj)
         end
     end
 
     if #chestQueue == 0 then return false end
-
     currentChestIndex = 1
     notify("Loaded " .. tostring(#chestQueue) .. " Pumpkin Chests.")
     return true
 end
 
+-- Iterative, so a broken chest can't recursively call itself forever.
 local function tpNextPumpkinChest()
     if #chestQueue == 0 or currentChestIndex > #chestQueue then
-        local success = refreshChestQueue()
-        if not success then
+        if not refreshChestQueue() then
             notify("Pumpkin Chests not found!")
             return
         end
     end
 
-    local currentChest = chestQueue[currentChestIndex]
+    local guard = 0
+    while currentChestIndex <= #chestQueue and guard < #chestQueue + 5 do
+        guard += 1
+        local chest = chestQueue[currentChestIndex]
 
-    if currentChest and currentChest.Parent then
-        local targetPart = currentChest.PrimaryPart or currentChest:FindFirstChildWhichIsA("BasePart", true)
-        local targetCFrame = targetPart and targetPart.CFrame or currentChest:GetPivot()
+        if chest and chest.Parent then
+            local part  = chest.PrimaryPart or chest:FindFirstChildWhichIsA("BasePart", true)
+            local cf    = part and part.CFrame or chest:GetPivot()
 
-        if targetCFrame then
-            teleportTo(targetCFrame + Vector3.new(0, 3, 0))
-            task.wait(0.2)
+            if cf then
+                teleportTo(cf + Vector3.new(0, 3, 0))
+                task.wait(0.2)
 
-            triggerPromptsInObject(currentChest)
-            if currentChest.Parent then
-                triggerPromptsInObject(currentChest.Parent)
+                triggerPromptsInObject(chest)
+                if chest.Parent then
+                    triggerPromptsInObject(chest.Parent)
+                end
+
+                notify(string.format("[%d/%d] Teleported to: %s",
+                    currentChestIndex, #chestQueue, chest.Name))
+
+                currentChestIndex += 1
+                return
             end
-
-            notify(string.format("[%d/%d] Teleported to: %s", currentChestIndex, #chestQueue, currentChest.Name))
-            currentChestIndex = currentChestIndex + 1
-        else
-            currentChestIndex = currentChestIndex + 1
-            tpNextPumpkinChest()
         end
-    else
-        currentChestIndex = currentChestIndex + 1
-        tpNextPumpkinChest()
+        currentChestIndex += 1
     end
 end
 
-TabMain:CreateToggle("INF Jump", false, function(state)
-    infJumpEnabled = state
+TabMain:CreateToggle("INF Jump", function(state)
+    enabled = state
     notify("INF Jump: " .. (state and "ON" or "OFF"))
 end)
 
